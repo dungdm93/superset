@@ -1244,6 +1244,24 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
                 raise ex
         return extra
 
+    @staticmethod
+    def get_encrypted_extra_params(database: "Database") -> Dict[str, Any]:
+        """
+        Some databases require some sensitive information which do not conform to
+        the username:password syntax normally used by SQLAlchemy.
+
+        :param database: database instance from which to extract extras
+        :raises CertificateException: If certificate is not valid/unparseable
+        """
+        encrypted_extra = {}
+        if database.encrypted_extra:
+            try:
+                encrypted_extra = json.loads(database.encrypted_extra)
+            except json.JSONDecodeError as ex:
+                logger.error(ex)
+                raise ex
+        return encrypted_extra
+
     @classmethod
     def is_readonly_query(cls, parsed_query: ParsedQuery) -> bool:
         """Pessimistic readonly, 100% sure statement won't mutate anything"""

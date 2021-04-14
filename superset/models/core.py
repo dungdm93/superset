@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=line-too-long,unused-argument,ungrouped-imports
 """A collection of ORM sqlalchemy models for Superset"""
-import json
 import logging
 import textwrap
 from contextlib import closing
@@ -91,7 +90,6 @@ class KeyValue(Model):  # pylint: disable=too-few-public-methods
 
 
 class CssTemplate(Model, AuditMixinNullable):
-
     """CSS templates for dashboards"""
 
     __tablename__ = "css_templates"
@@ -407,9 +405,7 @@ class Database(
 
         sql = str(qry.compile(engine, compile_kwargs={"literal_binds": True}))
 
-        if (
-            engine.dialect.identifier_preparer._double_percents  # pylint: disable=protected-access
-        ):
+        if engine.dialect.identifier_preparer._double_percents: # pylint: disable=protected-access
             sql = sql.replace("%%", "%")
 
         return sql
@@ -480,7 +476,8 @@ class Database(
         return self.db_engine_spec.get_all_datasource_names(self, "view")
 
     @cache_util.memoized_func(
-        key=lambda self, schema, *args, **kwargs: f"db:{self.id}:schema:{schema}:table_list",  # type: ignore
+        key=lambda self, schema, *args, **kwargs: # type: ignore
+                    f"db:{self.id}:schema:{schema}:table_list",
         cache=cache_manager.data_cache,
     )
     def get_all_table_names_in_schema(
@@ -512,7 +509,8 @@ class Database(
             logger.warning(ex)
 
     @cache_util.memoized_func(
-        key=lambda self, schema, *args, **kwargs: f"db:{self.id}:schema:{schema}:view_list",  # type: ignore
+        key=lambda self, schema, *args, **kwargs: # type: ignore
+                f"db:{self.id}:schema:{schema}:view_list",
         cache=cache_manager.data_cache,
     )
     def get_all_view_names_in_schema(
@@ -588,14 +586,7 @@ class Database(
         return self.db_engine_spec.get_extra_params(self)
 
     def get_encrypted_extra(self) -> Dict[str, Any]:
-        encrypted_extra = {}
-        if self.encrypted_extra:
-            try:
-                encrypted_extra = json.loads(self.encrypted_extra)
-            except json.JSONDecodeError as ex:
-                logger.error(ex)
-                raise ex
-        return encrypted_extra
+        return self.db_engine_spec.get_encrypted_extra_params(self)
 
     def get_table(self, table_name: str, schema: Optional[str] = None) -> Table:
         extra = self.get_extra()
