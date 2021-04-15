@@ -18,7 +18,6 @@ from datetime import datetime
 from typing import Any, Dict, Optional, TYPE_CHECKING
 from urllib import parse
 
-from requests.auth import AuthBase
 from sqlalchemy.engine.url import URL
 from trino.auth import Authentication
 
@@ -29,46 +28,29 @@ if TYPE_CHECKING:
     from superset.models.core import Database
 
 
-class OHTTPAuth2Auth(AuthBase):
+class OAuth2Authentication(Authentication):
     def __init__(
         self,
         client_id: str,
         client_secret: str,
         token_endpoint: str,
-        ca_bundle: Optional[str] = None,
     ) -> None:
-        self._client_id = client_id
-        self._client_secret = client_secret
-        self._token_endpoint = token_endpoint
-        self._ca_bundle = ca_bundle
+        from authlib.integrations.requests_client import OAuth2Session
 
-        self._access_token: Optional[str] = None
-        self._refresh_token: Optional[str] = None
-
-    def __call__(self, *args, **kwargs):
-        pass
-
-
-class OAuth2ClientCredentialsAuthentication(Authentication):
-    def __init__(
-        self,
-        client_id: str,
-        client_secret: str,
-        token_endpoint: str,
-        ca_bundle: Optional[str] = None,
-    ) -> None:
-        self._auth = OHTTPAuth2Auth(
+        self.client = OAuth2Session(
             client_id=client_id,
             client_secret=client_secret,
             token_endpoint=token_endpoint,
-            ca_bundle=ca_bundle,
         )
+        self.client.update_token = OAuth2Authentication.update_token(self.client)
 
     def set_client_session(self, client_session):
         pass
 
     def set_http_session(self, http_session):
-        http_session.auth = self._auth
+        if not self.client.token:
+            self.initialize_token(self.client)
+        http_session.auth = self.client.token_auth
         return http_session
 
     def setup(self, trino_client):
@@ -80,6 +62,18 @@ class OAuth2ClientCredentialsAuthentication(Authentication):
 
     def handle_error(self, handle_error):
         pass
+
+    @staticmethod
+    def update_token(client):
+        def func(token, refresh_token=None, access_token=None):
+            client.token = token
+
+        return func
+
+    @staticmethod
+    def initialize_token(client):
+        token = client.fetch_token(grant_type='client_credentials')
+        client.update_token(token)
 
 
 class TrinoEngineSpec(BaseEngineSpec):
@@ -148,9 +142,13 @@ class TrinoEngineSpec(BaseEngineSpec):
         auth_params = extra.pop("auth_params", {})
         if not auth_method:
             return extra
+
+        connect_args = extra.setdefault("connect_args", {})
         if auth_method == "kerberos":
             from trino.auth import KerberosAuthentication
-            extra["auth"] = KerberosAuthentication(**auth_params)
-        if auth_method == "oauth2_client_credentials":
-            extra["auth"] = OAuth2ClientCredentialsAuthentication(**auth_params)
+            connect_args["auth"] = KerberosAuthentication(**auth_params)
+        elif auth_method == "oauth2_client_credentials":
+            auth = OAuth2Authentication(**auth_params)
+            print(id(auth))
+            connect_args["auth"] = auth
         return extra
