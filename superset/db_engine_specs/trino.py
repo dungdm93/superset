@@ -19,10 +19,9 @@ from typing import Any, Dict, Optional, TYPE_CHECKING
 from urllib import parse
 
 from sqlalchemy.engine.url import URL
-from trino.auth import Authentication
-
 from superset.db_engine_specs.base import BaseEngineSpec
 from superset.utils import core as utils
+from trino.auth import Authentication
 
 if TYPE_CHECKING:
     from superset.models.core import Database
@@ -144,6 +143,7 @@ class TrinoEngineSpec(BaseEngineSpec):
             return extra
 
         connect_args = extra.setdefault("connect_args", {})
+        connect_args["http_scheme"] = "https"
         if auth_method == "kerberos":
             from trino.auth import KerberosAuthentication
             connect_args["auth"] = KerberosAuthentication(**auth_params)
